@@ -491,7 +491,7 @@ class future<T, detail::enable_if_copyable<T>> {
         -> std::pair<detail::packaged_task_from_signature_t<Signature>,
                 future<detail::result_of_t_<Signature>>>;
 
-    friend class detail::shared_base<T>;
+    friend struct detail::shared_base<T>;
 
   public:
     future() = default;
