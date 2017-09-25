@@ -1,112 +1,39 @@
-# stlab/libraries
+This is the source code repository of the Software Technology Lab (stlab).
 
 ASL libraries will be migrated here in the stlab namespace, new libraries will be created here.
 
-[ This is temporary documentation - to be replaced at a later date. ]
+# Branch states
 
-## <stlab/future>
+- **`master`:**
+[![Master status](https://travis-ci.org/stlab/libraries.svg?branch=master)](https://travis-ci.org/stlab/libraries)
+[![AppVeyor](https://ci.appveyor.com/api/projects/status/aaf2uibkql1625dl/branch/master?svg=true)](https://ci.appveyor.com/project/fosterbrereton/libraries/branch/master)
+[![Code Coverage](https://codecov.io/github/stlab/libraries/coverage.svg?branch=master)](https://codecov.io/gh/stlab/libraries/branch/master)
 
-This is a proof of concept implementation of a packaged task and future to replace the standard components. This is a list of some of the differences from standard (as of C++14) and boost (as of boost 1.58.0).
+- **`develop`:**
+[![Travis status](https://travis-ci.org/stlab/libraries.svg?branch=develop)](https://travis-ci.org/stlab/libraries)
+[![AppVeyor](https://ci.appveyor.com/api/projects/status/aaf2uibkql1625dl/branch/develop?svg=true)](https://ci.appveyor.com/project/fosterbrereton/libraries/branch/develop)
+[![Code Coverage](https://codecov.io/github/stlab/libraries/coverage.svg?branch=develop)](https://codecov.io/gh/stlab/libraries/branch/develop)
 
-There is no promise type, packaged_task and futures are created as pairs with the package() function.
 
-package_task is copyable, not just movable, and the call operator is const. This allows packaged_task objects to be
-stored in std::function<>. Once any copy of a packaged_task<> is called, all copies are invalid.
+# Content
 
-future is also copyable, there is no need for a shared future. If a future is only used as an rvalue and there are no copies then the value returned, by get_try or through a continuation, will be moved.
+## [Concurrency](http://www.stlab.cc/libraries/concurrency/)
+This library provides futures and channels, high level constructs for implementing algorithms that eases the use of 
+multiple CPU cores while minimizing contention. This library solves several problems of the C++11 and C++17 TS futures.  
 
-Multiple continutations may be attached to a single future with then(). then() is declared const since it does not mutate the result object of the future.
+# Documentation
 
-The continuation is called with the value type, not the future. A sink argument to a continuation should take the argument by value and move the object as needed. If the continuation reads the argument it should take it by const&. Behavior of modifying the argument through a non-const reference is undefined (may be a compliation error).
+The complete documentation is available on the [stlab home page](http://stlab.cc) 
 
-If the last copy of a future destructs, the associated task and any held futures for the task arguments are released and the associated packaged_task will become a no-op if called.
+# Building
 
-There are no wait() or get() function. Instead there is a get_try() which returns an optional<T> (or if T is void, the result is a bool with true indicating the associated task has executed.
+First, you will need the following tools:
 
-If the associated task through an exception, get_try() with rethrow the exception.
+- [`conan`](https://www.conan.io/) ([download](https://www.conan.io/downloads))
+- [`CMake`](https://cmake.org/) ([download](https://cmake.org/download/))
+- (Mac) Xcode 8.2.1 or later
+- (MSVC) Visual Studio 2015 (14.0) Update 3 or later
 
-For a future<T> if T is move only then the future is move only and can only contain one continuation.
+`conan` and `cmake` are available on the Mac via [Homebrew](http://brew.sh). `cmake` is available on Windows via [`scoop`](http://scoop.sh/).
 
-[ TODO - for notification of errors the plan is to add a recover() clause to futures which is passed the exception and may return a value T or rethrow. recover() will be executed prior to continuations. ]
-
-when_all() takes an n'ary function and n futures as arguments.
-
-Here is a trivial scheduler using threads:
-
-```c++
-auto schedule = [](auto f) // F is void() and movable
-{
-    thread(move(f)).detach();
-};
-```
-
-Here is an example scheduler function that uses Apple's libdispatch.
-
-```c++
-auto schedule = [](auto f) // F is void() and movable
-{
-    using f_t = decltype(f);
-
-    dispatch_async_f(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0),
-            new f_t(std::move(f)), [](void* f_) {
-                auto f = static_cast<f_t*>(f_);
-                (*f)();
-                delete f;
-            });
-};
-```
-
-```c++
-template<typename R, typename ...Args >
-class packaged_task<R (Args...)> {
-  public:
-    packaged_task();
-    ~packaged_task();
-
-    packaged_task(const packaged_task&);
-    packaged_task(packaged_task&&) noexcept;
-    packaged_task& operator=(const packaged_task&);
-    packaged_task& operator=(packaged_task&&) noexcept;
-
-    template <typename... A>
-    void operator()(A&&... args) const;
-};
-
-template <typename T>
-class future {
-  public:
-    future();
-    ~future();
-
-    future(const future&);
-    future(future&&) noexcept;
-    future& operator=(const future&);
-    future& operator=(future&& x) noexcept;
-
-    template <typename F>
-    auto then(F&& f) const&; // -> future<result_of_t<F(T)>>
-
-    template <typename S, typename F>
-    auto then(S&& s, F&& f) const&; // -> future<result_of_t<F(T)>>
-
-    template <typename F>
-    auto then(F&& f) &&; // -> future<result_of_t<F(T)>>
-
-    template <typename S, typename F>
-    auto then(S&& s, F&& f) &&; // -> future<result_of_t<F(T)>>
-
-    bool cancel_try();
-
-    auto get_try() const&; // -> T == void ? bool : optional<T>
-    auto get_try() &&; // -> T == void ? bool : optional<T>
-};
-
-template <typename S, typename F, typename... Ts>
-auto when_all(S, F, future<Ts>... args); // -> future<result_of_t<F(Ts...>>
-
-template <typename Sig, typename S, typename F>
-auto package(S s, F f); // -> pair<packaged_task<Sig>, future<result_of_t<Sig>>>;
-
-template <typename S, typename F, typename ...Args>
-auto async(S s, F&& f, Args&&... args) -> future<std::result_of_t<F (Args...)>>
-```
+Once they're set up, run either `setup_xcode.sh` or `setup_msvc.bat` for the platform of your choice. It will setup all necessary library dependencies and create the platform-specific project file in the `./build/` directory.
